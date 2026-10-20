@@ -84,7 +84,7 @@
             <span class="px-3 py-1 rounded-md bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider">Sprint A (3 Weeks)</span>
             <h2 class="text-xl font-bold text-white">Oct 19 – Nov 6: Foundation & First Feedback Loop</h2>
           </div>
-          <span class="text-xs text-slate-400 hidden sm:inline">Click checkboxes to track milestones</span>
+          <span id="sync-status" class="text-xs text-slate-400 hidden sm:inline">Click checkboxes to track milestones</span>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -452,6 +452,8 @@
 
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script>
     function switchTab(tab) {
       ['roadmap', 'schedule', 'training'].forEach(t => {
@@ -486,8 +488,55 @@
         }
       });
     }
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    // ===== Firebase: shared milestone progress =====
+    const firebaseConfig = {
+      apiKey: "AIzaSyBL_WKrRumipLjExJgR4UnBA5nI23phXA8",
+      authDomain: "scrum-workshop-7598d.firebaseapp.com",
+      databaseURL: "https://scrum-workshop-7598d-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "scrum-workshop-7598d",
+      storageBucket: "scrum-workshop-7598d.firebasestorage.app",
+      messagingSenderId: "653604374068",
+      appId: "1:653604374068:web:bd04893082797e64bfac61"
+    };
+
+    (function initCloud() {
+      const status = document.getElementById('sync-status');
+      const setStatus = (t) => { if (status) status.textContent = t; };
+      const boxes = Array.from(document.querySelectorAll('.milestone-cb'));
+
+      if (typeof firebase === 'undefined') {
+        setStatus('Offline mode: progress is not saved');
+        return;
+      }
+
+      try {
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const ref = db.ref('roadmap/milestones');
+
+        db.ref('.info/connected').on('value', (s) =>
+          setStatus(s.val() ? '● Live: progress is shared with everyone' : '○ Connecting…'));
+
+        // Save: every click is written to the database
+        boxes.forEach((cb, i) => {
+          cb.addEventListener('change', () => {
+            ref.child('m' + i).set(cb.checked)
+              .catch((e) => { console.error(e); setStatus('Save failed: ' + (e.code || e.message)); });
+          });
+        });
+
+        // Load + live updates: apply the shared state to the checkboxes
+        ref.on('value', (snap) => {
+          const data = snap.val() || {};
+          boxes.forEach((cb, i) => { cb.checked = !!data['m' + i]; });
+          updateProgress();
+        }, (e) => { console.error(e); setStatus('Cloud error: ' + (e.code || e.message)); });
+      } catch (e) {
+        console.error(e);
+        setStatus('Cloud error: ' + e.message);
+      }
+    })();
   </script>
 </body>
 </html>
